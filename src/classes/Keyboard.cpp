@@ -385,6 +385,9 @@ bool LedKeyboard::commit() {
 		case KeyboardModel::g815:
 			data = { 0x11, 0xff, 0x10, 0x7f };
 			break;
+		case KeyboardModel::g915:
+			data = { 0x11, 0x01, 0x10, 0x7f };
+			break;
 		case KeyboardModel::g910:
 			data = { 0x11, 0xff, 0x0f, 0x5d };
 			break;
@@ -411,6 +414,7 @@ bool LedKeyboard::setKeys(KeyValueArray keyValues) {
 	
 	switch (currentDevice.model) {
 		case KeyboardModel::g815:
+		case KeyboardModel::g915:
 			for (uint8_t i = 0; i < keyValues.size(); i++) {
 				uint32_t colorkey = static_cast<uint32_t>(keyValues[i].color.red | keyValues[i].color.green << 8 | keyValues[i].color.blue << 16 );
 				if (KeyByColors.count(colorkey) == 0) KeyByColors.insert(pair<uint32_t, vector<KeyValue>>(colorkey, {}));
@@ -422,7 +426,12 @@ bool LedKeyboard::setKeys(KeyValueArray keyValues) {
 					uint8_t gi = 0;
 					while (gi < x.second.size()) {
 						size_t data_size = 20;
-						byte_buffer_t data = { 0x11, 0xff, 0x10, 0x6c };
+						byte_buffer_t data;
+						if (currentDevice.model == KeyboardModel::g915) {
+							data = { 0x11, 0x01, 0x10, 0x6c };
+						} else {
+							data = { 0x11, 0xff, 0x10, 0x6c };
+						}
 						data.push_back(x.second[0].color.red);
 						data.push_back(x.second[0].color.green);
 						data.push_back(x.second[0].color.blue);
@@ -725,6 +734,17 @@ bool LedKeyboard::setMRKey(uint8_t value) {
 					break;
 			}
 			break;
+		case KeyboardModel::g915:
+			switch (value) {
+				case 0x00:
+				case 0x01:
+					data = { 0x11, 0x01, 0x0c, 0x0c, value };
+					data.resize(20, 0x00);
+					return sendDataInternal(data);
+				default:
+					break;
+			}
+			break;
 		case KeyboardModel::g910:
 			switch (value) {
 				case 0x00:
@@ -763,6 +783,24 @@ bool LedKeyboard::setMNKey(uint8_t value) {
 					break;
 			}
 			break;
+		case KeyboardModel::g915:
+			switch (value) {
+				case 0x01:
+                    data = { 0x11, 0x01, 0x0b, 0x1c, 0x01 };
+                    data.resize(20, 0x00);
+                    return sendDataInternal(data);
+                case 0x02:
+                    data = { 0x11, 0x01, 0x0b, 0x1c, 0x02 };
+                    data.resize(20, 0x00);
+                    return sendDataInternal(data);
+                case 0x03:
+                    data = { 0x11, 0x01, 0x0b, 0x1c, 0x04 };
+                    data.resize(20, 0x00);
+                    return sendDataInternal(data);
+				default:
+					break;
+			}
+			break;
 		case KeyboardModel::g910:
 			switch (value) {
 				case 0x00:
@@ -794,6 +832,17 @@ bool LedKeyboard::setGKeysMode(uint8_t value) {
 				case 0x00:
 				case 0x01:
 					data = { 0x11, 0xff, 0x0a, 0x2b, value };
+					data.resize(20, 0x00);
+					return sendDataInternal(data);
+				default:
+					break;
+			}
+			break;
+		case KeyboardModel::g915:
+			switch (value) {
+				case 0x00:
+				case 0x01:
+					data = { 0x11, 0x01, 0x0a, 0x2b, value };
 					data.resize(20, 0x00);
 					return sendDataInternal(data);
 				default:
@@ -860,6 +909,10 @@ bool LedKeyboard::setOnBoardMode(OnBoardMode onBoardMode) {
 			data = { 0x11, 0xff, 0x11, 0x1a, static_cast<uint8_t>(onBoardMode) };
 			data.resize(20, 0x00);
 			return sendDataInternal(data);
+		case KeyboardModel::g915:
+			data = { 0x11, 0x01, 0x11, 0x1a, static_cast<uint8_t>(onBoardMode) };
+			data.resize(20, 0x00);
+			return sendDataInternal(data);
 		default:
 			return false;
 	}
@@ -899,6 +952,8 @@ bool LedKeyboard::setNativeEffect(NativeEffect effect, NativeEffectPart part,
 			setNativeEffect(effect, LedKeyboard::NativeEffectPart::logo, period, color, storage));
 	}
 
+	unsigned char deviceSelect = 0xff;
+
 	switch (currentDevice.model) {
 		case KeyboardModel::g213:
 		case KeyboardModel::g413:
@@ -919,6 +974,11 @@ bool LedKeyboard::setNativeEffect(NativeEffect effect, NativeEffectPart part,
 			protocolBytes[0] = 0x0f;
 			protocolBytes[1] = 0x1c;
 			break;
+		case KeyboardModel::g915:
+			protocolBytes[0] = 0x0f;
+			protocolBytes[1] = 0x1c;
+			deviceSelect = 0x01;
+			break;
 		case KeyboardModel::g910:
 			protocolBytes[0] = 0x10;
 			protocolBytes[1] = 0x3c;
@@ -928,7 +988,7 @@ bool LedKeyboard::setNativeEffect(NativeEffect effect, NativeEffectPart part,
 	}
 
 	byte_buffer_t data = {
-		0x11, 0xff, protocolBytes[0], protocolBytes[1],
+		0x11, deviceSelect, protocolBytes[0], protocolBytes[1],
 		(uint8_t)part, static_cast<uint8_t>(effectGroup),
 		// color of static-color and breathing effects
 		color.red, color.green, color.blue,
@@ -950,7 +1010,12 @@ bool LedKeyboard::setNativeEffect(NativeEffect effect, NativeEffectPart part,
 	bool retval;
 	switch (currentDevice.model) {
 		case KeyboardModel::g815:
-			setupData = { 0x11, 0xff, 0x0f, 0x5c, 0x01, 0x03, 0x03 };
+		case KeyboardModel::g915:
+			if (currentDevice.model == KeyboardModel::g915) {
+				setupData = { 0x11, 0x01, 0x0f, 0x5c, 0x01, 0x03, 0x03 };
+			} else {
+				setupData = { 0x11, 0xff, 0x0f, 0x5c, 0x01, 0x03, 0x03 };
+			}
 			setupData.resize(20, 0x00);
 			retval = sendDataInternal(setupData);
 
@@ -1099,6 +1164,20 @@ LedKeyboard::byte_buffer_t LedKeyboard::getKeyGroupAddress(LedKeyboard::KeyAddre
 					return { 0x11, 0xff, 0x10, 0x1c };
 				case LedKeyboard::KeyAddressGroup::keys:
 					return { 0x11, 0xff, 0x10, 0x1c };
+			}
+			break;
+		case KeyboardModel::g915:
+			switch (keyAddressGroup) {
+				case LedKeyboard::KeyAddressGroup::logo:
+					return { 0x11, 0x01, 0x10, 0x1c };
+				case LedKeyboard::KeyAddressGroup::indicators:
+					return { 0x11, 0x01, 0x10, 0x1c };
+				case LedKeyboard::KeyAddressGroup::gkeys:
+					return { 0x11, 0x01, 0x10, 0x1c };
+				case LedKeyboard::KeyAddressGroup::multimedia:
+					return { 0x11, 0x01, 0x10, 0x1c };
+				case LedKeyboard::KeyAddressGroup::keys:
+					return { 0x11, 0x01, 0x10, 0x1c };
 			}
 			break;
 		case KeyboardModel::g910:

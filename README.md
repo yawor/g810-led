@@ -14,6 +14,7 @@ Linux led controller for Logitech G213, G410, G413, G512, G513, G610, G810, G815
 - **G815 Lightsync**</br>
 - **G910 Orion Spark**</br>
 - **G910 Orion Spectrum**</br>
+- **G915 LightSpeed**</br>
 - **GPRO**</br>
 
 ## Contribute and evolution :</br>
